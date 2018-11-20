@@ -1,3 +1,4 @@
-# RGTI ala slander game
+# Dungeon escape
 
-Poskus izvedbe igre v web-glu
+Igralec mora najti pot iz labirinta in se pri tem umikati različnim objektom.
+Igra poteka v dveh nivojih
