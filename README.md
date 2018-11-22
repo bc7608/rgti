@@ -1,3 +1,3 @@
-# RGTI ala slander game
+# Space Racer
 
-Poskus izvedbe igre v web-glu
+
