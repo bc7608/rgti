@@ -1,38 +1,84 @@
 <html>
 
 <head>
-    <title>kao neka igra</title>
+    <title>kao neka </title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <link rel="stylesheet" href="./style/style.css" type="text/css">
     <script type="text/javascript" src="./scripts/glMatrix-0.9.5.min.js"></script>
     <script src="./scripts/skripta.js" type="text/javascript"></script>
-
-    <!-- Fragment shader program -->
-    <script id="shader-fs" type="x-shader/x-fragment">
-        precision mediump float; // uniform attribute for setting texture coordinates varying vec2 vTextureCoord; // uniform attribute for setting 2D sampler uniform sampler2D uSampler; void main(void) { // sample the fragment color from texture gl_FragColor=texture2D(uSampler,vec2(vTextureCoord.s,vTextureCoord.t));
+    <script type="text/javascript">
+        function showValue(id, newValue) {
+            document.getElementById(id + "span").innerHTML = " " + newValue;
         }
-    </script>
-
-
-    <!-- Vertex shader program -->
-    <script id="shader-vs" type="x-shader/x-vertex">
-        // atributes for setting vertex position and texture coordinates attribute vec3 aVertexPosition; attribute vec2 aTextureCoord; uniform mat4 uMVMatrix; // model-view matrix uniform mat4 uPMatrix; // projection matrix // variable for passing texture coordinates//fromvertex
-        shader to fragment shader varying vec2 vTextureCoord; void main(void) { // calculate the vertex position gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); vTextureCoord = aTextureCoord; }
     </script>
 </head>
 
 <body onload="start()">
-    <h1>Dungeon escape</h1>
+    <h1>Space Racer</h1>
     <div id="content">
         <canvas id="glcanvas" width="1280px" height="720px">
 				No <code>&lt;canvas&gt;</code> suppport in your browser.
 			</canvas>
         <div id="loadingtext">Loading world...</div>
         <br />
-        <br /> (Use cursor WASD keys to move and <code>Page Up</code>/<code>Page Down</code> to look up/down)
+        <input type="checkbox" id="specular" checked /> Show specular highlight<br/>
+        <input type="checkbox" id="lighting" checked /> Use lighting<br/> Texture:
+        <select id="texture">
+			        <option value="none">None</option>
+			        <option selected value="galvanized">Galvanized</option>
+			        <option value="earth">Earth</option>
+			    </select>
+        <br/>
+        <br/>
+
+        <h2>Material:</h2>
+
+        <table style="border: 0; padding: 10px;">
+            <tr>
+                <td><b>Shininess:</b></td>
+                <td><input type="range" min="0" max="1000" step="0.1" id="shininess" value="32" oninput="showValue(this.id, this.value)" /><span id="shininessspan">32.0</span></td>
+            </tr>
+        </table>
+
+        <br/>
+        <h2>Point light:</h2>
+
+        <table>
+            <tr>
+                <td class="table1st"><b>Location:</b></td>
+                <td>X: <input type="range" min="-10" max="10" step="0.05" id="lightPositionX" value="-10.0" oninput="showValue(this.id, this.value)" /><span id="lightPositionXspan">-10.0</span></td>
+                <td>Y: <input type="range" min="-10" max="10" step="0.05" id="lightPositionY" value="4.0" oninput="showValue(this.id, this.value)" /><span id="lightPositionYspan">4.0</span></td>
+                <td>Z: <input type="range" min="-20" max="20" step="1" id="lightPositionZ" value="-20.0" oninput="showValue(this.id, this.value)" /><span id="lightPositionZspan">-20.0</span></td>
+            </tr>
+            <tr>
+                <td class="table1st"><b>Specular color:</b></td>
+                <td>R: <input type="range" min="0" max="1" step="0.01" id="specularR" value="0.8" oninput="showValue(this.id, this.value)" /><span id="specularRspan">0.8</span></td>
+                <td>G: <input type="range" min="0" max="1" step="0.01" id="specularG" value="0.8" oninput="showValue(this.id, this.value)" /><span id="specularGspan">0.8</span></td>
+                <td>B: <input type="range" min="0" max="1" step="0.01" id="specularB" value="0.8" oninput="showValue(this.id, this.value)" /><span id="specularBspan">0.8</span></td>
+            </tr>
+            <tr>
+                <td><b>Difuse color:</b></td>
+                <td>R: <input type="range" min="0" max="1" step="0.01" id="diffuseR" value="0.8" oninput="showValue(this.id, this.value)" /><span id="diffuseRspan">0.8</span></td>
+                <td>G: <input type="range" min="0" max="1" step="0.01" id="diffuseG" value="0.8" oninput="showValue(this.id, this.value)" /><span id="diffuseGspan">0.8</span></td>
+                <td>B: <input type="range" min="0" max="1" step="0.01" id="diffuseB" value="0.8" oninput="showValue(this.id, this.value)" /><span id="diffuseBspan">0.8</span></td>
+            </tr>
+        </table>
+
+        <h2>Ambient light:</h2>
+        <table>
+            <tr>
+                <td class="table1st"><b>Color:</b></td>
+                <td>R: <input type="range" min="0" max="1" step="0.01" id="ambientR" value="0.2" oninput="showValue(this.id, this.value)" /><span id="ambientRspan">0.2</span></td>
+                <td>G: <input type="range" min="0" max="1" step="0.01" id="ambientG" value="0.2" oninput="showValue(this.id, this.value)" /><span id="ambientGspan">0.2</span></td>
+                <td>B: <input type="range" min="0" max="1" step="0.01" id="ambientB" value="0.2" oninput="showValue(this.id, this.value)" /><span id="ambientBspan">0.2</span></td>
+            </tr>
+        </table>
+        <br />
+        <br /> Galvanized texture courtesy of <a href="http://www.arroway-textures.com/">Arroway Textures</a>.<br/> Earth texture courtesy of <a href="http://www.esa.int/esaEO/SEMGSY2IU7E_index_0.html">the European Space Agency/Envisat</a>.<br/><br/>
         <br />
         <br />
-        <a href="./">Back</a>
+        <a href="./">
+            <- Back</a>
     </div>
 </body>
 

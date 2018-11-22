@@ -1,52 +1,128 @@
-// Global variable definitionvar canvas;
 var canvas;
 var gl;
 var shaderProgram;
+
+
 var shaderSourceFragment = ` 
-    precision mediump float; 
-    // uniform attribute for setting texture coordinates 
-    varying vec2 vTextureCoord; 
-    // uniform attribute for setting 2D sampler 
-    uniform sampler2D uSampler; 
-    void main(void) { 
-        // sample the fragment color from texture 
-        gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)); 
-    }
+   precision mediump float;
+
+	    	// uniform attribute for setting texture coordinates
+		    varying vec2 vTextureCoord;
+	    	// uniform attribute for setting normals
+		    varying vec3 vTransformedNormal;
+	    	// uniform attribute for setting positions
+		    varying vec4 vPosition;
+
+	    	// uniform attribute for setting shininess
+		    uniform float uMaterialShininess;
+
+			// uniform attribute for enabling speculars
+		    uniform bool uShowSpecularHighlights;
+			// uniform attribute for enabling lighting
+		    uniform bool uUseLighting;
+			// uniform attribute for enabling textures
+		    uniform bool uUseTextures;
+
+		    uniform vec3 uAmbientColor;	// ambient color uniform
+
+		    uniform vec3 uPointLightingLocation;			// light direction uniform
+		    uniform vec3 uPointLightingSpecularColor;		// specular light color
+		    uniform vec3 uPointLightingDiffuseColor;		// difuse light color
+
+			// uniform attribute for setting 2D sampler
+		    uniform sampler2D uSampler;
+
+
+		    void main(void) {
+		        vec3 lightWeighting;
+		        if (!uUseLighting) {
+		            lightWeighting = vec3(1.0, 1.0, 1.0);
+		        } else {
+		            vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+		            vec3 normal = normalize(vTransformedNormal);
+
+		            // Specular component
+		            float specularLightWeighting = 0.0;
+		            if (uShowSpecularHighlights) {
+		                vec3 eyeDirection = normalize(-vPosition.xyz);
+		                vec3 reflectionDirection = reflect(-lightDirection, normal);
+
+		                specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+		            }
+
+		            // diffuese component
+		            float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);
+		            lightWeighting = uAmbientColor
+		                + uPointLightingSpecularColor * specularLightWeighting
+		                + uPointLightingDiffuseColor * diffuseLightWeighting;
+		        }
+
+		        vec4 fragmentColor;
+		        if (uUseTextures) {
+	    			// sample the fragment color from texture
+		            fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+		        } else {
+		    		// set the fragment color to white
+		            fragmentColor = vec4(1.0, 1.0, 1.0, 1.0);
+		        }
+	    		// sample the fragment color from texture
+		        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);
+		    }
     `
 var shaderSourceVertex = `
-    // atributes for setting vertex position and texture coordinates 
-    attribute vec3 aVertexPosition; 
-    attribute vec2 aTextureCoord; 
-    uniform mat4 uMVMatrix; 
-    // model-view matrix 
-    uniform mat4 uPMatrix; 
-    // projection matrix 
-    // variable for passing texture coordinates
-    // from vertex shader to fragment shader 
-    varying vec2 vTextureCoord; 
-    void main(void) { 
-        // calculate the vertex position 
-        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-         vTextureCoord = aTextureCoord; 
-    }
+ // atributes for setting vertex position, normals and texture coordinates
+		    attribute vec3 aVertexPosition;
+		    attribute vec3 aVertexNormal;
+		    attribute vec2 aTextureCoord;
+
+		    uniform mat4 uMVMatrix;	// model-view matrix
+		    uniform mat4 uPMatrix;	// projection matrix
+		    uniform mat3 uNMatrix;	// normal matrix
+
+			// variable for passing texture coordinates and lighting weights
+			// from vertex shader to fragment shader
+		    varying vec2 vTextureCoord;
+		    varying vec3 vTransformedNormal;
+		    varying vec4 vPosition;
+
+
+		    void main(void) {
+		    	// calculate the vertex position
+		        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+		        gl_Position = uPMatrix * vPosition;
+		        vTextureCoord = aTextureCoord;
+		        vTransformedNormal = uNMatrix * aVertexNormal;
+		    }
     `
 
-// Buffers
-var worldVertexPositionBuffer = null;
-var worldVertexTextureCoordBuffer = null;
+//buffers
+var worldVertexPositionBuffer;
+var worldVertexNormalBuffer;
+var worldVertexTextureCoordBuffer;
+var worldVertexIndexBuffer;
+var squareVertexPositionBuffer;
+var squareVertexNormalBuffer;
+var squareVertexTextureCoordBuffer;
+var squareVertexIndexBuffer;
 
 // Model-view and projection matrix and model-view matrix stack
 var mvMatrixStack = [];
 var mvMatrix = mat4.create();
 var pMatrix = mat4.create();
 
-// Variables for storing textures
-var wallTexture;
+// Variable for storing textures
+var earthTexture;
+var metalTexture;
+var backTexture;
 
 // Variable that stores  loading state of textures.
-var texturesLoaded = false;
+var numberOfTextures = 1;
+var texturesLoaded = 0;
 
-// Keyboard handling helper variable for reading the status of keys
+// Helper variables for rotation
+var teapotAngle = 180;
+
+// Helper variable for animation
 var currentlyPressedKeys = {};
 
 // Variables for storing current position and speed
@@ -54,13 +130,12 @@ var pitch = 0;
 var pitchRate = 0;
 var yaw = 0;
 var yawRate = 0;
-var xPosition = 0;
-var yPosition = 0.4;
-var zPosition = 0;
+var xPosition = 0.0;
+var yPosition = 1;
+var zPosition = 0.0;
 var speed = 0;
 
-// Used to make us "jog" up and down as we move forward.
-var joggingAngle = 0;
+
 
 // Helper variable for animation
 var lastTime = 0;
@@ -111,12 +186,8 @@ function initGL(canvas) {
     return gl;
 }
 
-//
-// getShader
-//
-// Loads a shader program by scouring the current document,
-// looking for a script with the specified ID.
-//
+
+
 function getShader(gl, id) {
     var shaderSource = ``;
     var shader;
@@ -127,37 +198,6 @@ function getShader(gl, id) {
         shaderSource = shaderSourceVertex;
         shader = gl.createShader(gl.VERTEX_SHADER);
     }
-    //var shaderScript = document.getElementById(id);
-
-    // Didn't find an element with the specified ID; abort.
-    /* if (!shaderScript) {
-         return null;
-     }
-
-     // Walk through the source element's children, building the
-     // shader source string.
-
-     var currentChild = shaderScript.firstChild;
-     while (currentChild) {
-         if (currentChild.nodeType == 3) {
-             shaderSource += currentChild.textContent;
-         }
-         currentChild = currentChild.nextSibling;
-     }*/
-    //console.log(shaderSource);
-
-    // Now figure out what type of shader script we have,
-    // based on its MIME type.
-    //var shader;
-    /*if (shaderScript.type == "x-shader/x-fragment") {
-        shader = gl.createShader(gl.FRAGMENT_SHADER);
-    } else if (shaderScript.type == "x-shader/x-vertex") {
-        shader = gl.createShader(gl.VERTEX_SHADER);
-    } else {
-        return null; // Unknown shader type
-    }*/
-
-    // Send the source to the shader object
     gl.shaderSource(shader, shaderSource);
 
     // Compile the shader program
@@ -172,16 +212,10 @@ function getShader(gl, id) {
     return shader;
 }
 
-//
-// initShaders
-//
-// Initialize the shaders, so WebGL knows how to light our scene.
-//
 function initShaders() {
     var fragmentShader = getShader(gl, "shader-fs");
-    //console.log(fragmentShader);
     var vertexShader = getShader(gl, "shader-vs");
-    //console.log(vertexShader);
+
     // Create the shader program
     shaderProgram = gl.createProgram();
     gl.attachShader(shaderProgram, vertexShader);
@@ -202,47 +236,84 @@ function initShaders() {
     // turn on vertex position attribute at specified position
     gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
 
-    // store location of aVertexNormal variable defined in shader
+    // store location of vertex normals variable defined in shader
+    shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+
+    // turn on vertex normals attribute at specified position
+    gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+    // store location of texture coordinate variable defined in shader
     shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
 
-    // store location of aTextureCoord variable defined in shader
+    // turn on texture coordinate attribute at specified position
     gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
 
     // store location of uPMatrix variable defined in shader - projection matrix 
     shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
     // store location of uMVMatrix variable defined in shader - model-view matrix 
     shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+    // store location of uNMatrix variable defined in shader - normal matrix 
+    shaderProgram.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
     // store location of uSampler variable defined in shader
     shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+    // store location of uMaterialShininess variable defined in shader
+    shaderProgram.materialShininessUniform = gl.getUniformLocation(shaderProgram, "uMaterialShininess");
+    // store location of uShowSpecularHighlights variable defined in shader
+    shaderProgram.showSpecularHighlightsUniform = gl.getUniformLocation(shaderProgram, "uShowSpecularHighlights");
+    // store location of uUseTextures variable defined in shader
+    shaderProgram.useTexturesUniform = gl.getUniformLocation(shaderProgram, "uUseTextures");
+    // store location of uUseLighting variable defined in shader
+    shaderProgram.useLightingUniform = gl.getUniformLocation(shaderProgram, "uUseLighting");
+    // store location of uAmbientColor variable defined in shader
+    shaderProgram.ambientColorUniform = gl.getUniformLocation(shaderProgram, "uAmbientColor");
+    // store location of uPointLightingLocation variable defined in shader
+    shaderProgram.pointLightingLocationUniform = gl.getUniformLocation(shaderProgram, "uPointLightingLocation");
+    // store location of uPointLightingSpecularColor variable defined in shader
+    shaderProgram.pointLightingSpecularColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingSpecularColor");
+    // store location of uPointLightingDiffuseColor variable defined in shader
+    shaderProgram.pointLightingDiffuseColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingDiffuseColor");
 }
 
 //
 // setMatrixUniforms
 //
-// Set the uniforms in shaders.
+// Set the uniform values in shaders for model-view and projection matrix.
 //
 function setMatrixUniforms() {
     gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
     gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+
+    var normalMatrix = mat3.create();
+    mat4.toInverseMat3(mvMatrix, normalMatrix);
+    mat3.transpose(normalMatrix);
+    gl.uniformMatrix3fv(shaderProgram.nMatrixUniform, false, normalMatrix);
 }
 
-//
-// initTextures
-//
-// Initialize the textures we'll be using, then initiate a load of
-// the texture images. The handleTextureLoaded() callback will finish
-// the job; it gets called each time a texture finishes loading.
-//
 function initTextures() {
-    wallTexture = gl.createTexture();
-    wallTexture.image = new Image();
-    wallTexture.image.onload = function() {
-        handleTextureLoaded(wallTexture)
+    earthTexture = gl.createTexture();
+    earthTexture.image = new Image();
+    earthTexture.image.onload = function() {
+        handleTextureLoaded(earthTexture)
     }
-    wallTexture.image.src = "./assets/wall.png";
+    earthTexture.image.src = "./assets/earth.jpg";
+
+    metalTexture = gl.createTexture();
+    metalTexture.image = new Image();
+    metalTexture.image.onload = function() {
+            handleTextureLoaded(metalTexture)
+        }
+        /*
+        backTexture = gl.createTexture();
+        backTexture.image = new Image();
+        backTexture.image.onload = function() {
+            handleTextureLoaded(backTexture)
+        }
+        backTexture.image.src = "./assets/space.jpg";
+        */
 }
 
 function handleTextureLoaded(texture) {
+
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
     // Third texture usus Linear interpolation approximation with nearest Mipmap selection
@@ -255,80 +326,67 @@ function handleTextureLoaded(texture) {
     gl.bindTexture(gl.TEXTURE_2D, null);
 
     // when texture loading is finished we can draw scene.
-    texturesLoaded = true;
+    texturesLoaded += 1;
 }
 
 //
 // handleLoadedWorld
 //
-// Initialisation of world 
+// Handle loaded teapot
 //
-function handleLoadedWorld(data) {
-    var lines = data.split("\n");
-    var vertexCount = 0;
-    var vertexPositions = [];
-    var vertexTextureCoords = [];
-    for (var i in lines) {
-        var vals = lines[i].replace(/^\s+/, "").split(/\s+/);
-        console.log(vals);
-        if (vals.length == 6 && vals[0] != "//") {
-            // It is a line describing a vertex; get X, Y and Z first
-            vertexPositions.push(parseFloat(vals[0]));
-            vertexPositions.push(parseFloat(vals[1]));
-            vertexPositions.push(parseFloat(vals[2]));
+function handleLoadedWorld(worldData) {
+    // Pass the normals into WebGL
+    worldVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(worldData.vertexNormals), gl.STATIC_DRAW);
+    worldVertexNormalBuffer.itemSize = 3;
+    worldVertexNormalBuffer.numItems = worldData.vertexNormals.length / 3;
 
-            // And then the texture coords
-            vertexTextureCoords.push(parseFloat(vals[3]));
-            vertexTextureCoords.push(parseFloat(vals[4]));
-
-            vertexCount += 1;
-        }
-    }
-
-    worldVertexPositionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPositions), gl.STATIC_DRAW);
-    worldVertexPositionBuffer.itemSize = 3;
-    worldVertexPositionBuffer.numItems = vertexCount;
-
+    // Pass the texture coordinates into WebGL
     worldVertexTextureCoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexTextureCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexTextureCoords), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(worldData.vertexTextureCoords), gl.STATIC_DRAW);
     worldVertexTextureCoordBuffer.itemSize = 2;
-    worldVertexTextureCoordBuffer.numItems = vertexCount;
+    worldVertexTextureCoordBuffer.numItems = worldData.vertexTextureCoords.length / 2;
+
+    // Pass the vertex positions into WebGL
+    worldVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(worldData.vertexPositions), gl.STATIC_DRAW);
+    worldVertexPositionBuffer.itemSize = 3;
+    worldVertexPositionBuffer.numItems = worldData.vertexPositions.length / 3;
+
+    // Pass the indices into WebGL
+    worldVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, worldVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(worldData.indices), gl.STATIC_DRAW);
+    worldVertexIndexBuffer.itemSize = 1;
+    worldVertexIndexBuffer.numItems = worldData.indices.length;
 
     document.getElementById("loadingtext").textContent = "";
 }
 
-//
-// loadWorld
-//
-// Loading world 
+
+// load world
 //
 function loadWorld() {
     var request = new XMLHttpRequest();
-    request.open("GET", "./assets/world.txt");
+    request.open("GET", "./assets/world.json");
     request.onreadystatechange = function() {
         if (request.readyState == 4) {
-            handleLoadedWorld(request.responseText);
+            handleLoadedWorld(JSON.parse(request.responseText));
         }
     }
     request.send();
 }
 
-//
-// drawScene
-//
-// Draw the scene.
-//
 function drawScene() {
     // set the rendering environment to full canvas size
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     // Clear the canvas before we start drawing on it.
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // If buffers are empty we stop loading the application.
-    if (worldVertexTextureCoordBuffer == null || worldVertexPositionBuffer == null) {
+    if (worldVertexPositionBuffer == null || worldVertexNormalBuffer == null || worldVertexTextureCoordBuffer == null || worldVertexIndexBuffer == null) {
         return;
     }
 
@@ -337,6 +395,52 @@ function drawScene() {
     // ratio of 640:480, and we only want to see objects between 0.1 units
     // and 100 units away from the camera.
     mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
+
+    var specularHighlights = document.getElementById("specular").checked;
+    gl.uniform1i(shaderProgram.showSpecularHighlightsUniform, specularHighlights);
+
+    // Ligthing
+    var lighting = document.getElementById("lighting").checked;
+
+    // set uniform to the value of the checkbox.
+    gl.uniform1i(shaderProgram.useLightingUniform, lighting);
+
+    // set uniforms for lights as defined in the document
+    if (lighting) {
+        gl.uniform3f(
+            shaderProgram.ambientColorUniform,
+            parseFloat(document.getElementById("ambientR").value),
+            parseFloat(document.getElementById("ambientG").value),
+            parseFloat(document.getElementById("ambientB").value)
+        );
+
+        gl.uniform3f(
+            shaderProgram.pointLightingLocationUniform,
+            parseFloat(document.getElementById("lightPositionX").value),
+            parseFloat(document.getElementById("lightPositionY").value),
+            parseFloat(document.getElementById("lightPositionZ").value)
+        );
+
+        gl.uniform3f(
+            shaderProgram.pointLightingSpecularColorUniform,
+            parseFloat(document.getElementById("specularR").value),
+            parseFloat(document.getElementById("specularG").value),
+            parseFloat(document.getElementById("specularB").value)
+        );
+
+        gl.uniform3f(
+            shaderProgram.pointLightingDiffuseColorUniform,
+            parseFloat(document.getElementById("diffuseR").value),
+            parseFloat(document.getElementById("diffuseG").value),
+            parseFloat(document.getElementById("diffuseB").value)
+        );
+    }
+
+    // Textures
+    var texture = document.getElementById("texture").value;
+
+    // set uniform to the value of the checkbox.
+    gl.uniform1i(shaderProgram.useTexturesUniform, texture != "none");
 
     // Set the drawing position to the "identity" point, which is
     // the center of the scene.
@@ -350,54 +454,37 @@ function drawScene() {
 
     // Activate textures
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, wallTexture);
+
+    if (texture == "earth") {
+        gl.bindTexture(gl.TEXTURE_2D, earthTexture);
+    } else if (texture == "galvanized") {
+        gl.bindTexture(gl.TEXTURE_2D, metalTexture);
+    }
     gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+    // Activate shininess
+    gl.uniform1f(shaderProgram.materialShininessUniform, parseFloat(document.getElementById("shininess").value));
+
+    // Set the vertex positions attribute for the teapot vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
     // Set the texture coordinates attribute for the vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexTextureCoordBuffer);
     gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, worldVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
-    // Draw the world by binding the array buffer to the world's vertices
-    // array, setting attributes, and pushing it to GL.
-    gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
-    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the normals attribute for the vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, worldVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
-    // Draw the cube.
+    // Set the index for the vertices.
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, worldVertexIndexBuffer);
     setMatrixUniforms();
-    gl.drawArrays(gl.TRIANGLES, 0, worldVertexPositionBuffer.numItems);
+
+    // Draw the teapot
+    gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 }
 
-//
-// animate
-//
-// Called every time before redeawing the screen.
-//
-function animate() {
-    var timeNow = new Date().getTime();
-    if (lastTime != 0) {
-        var elapsed = timeNow - lastTime;
-
-        if (speed != 0) {
-            xPosition -= Math.sin(degToRad(yaw)) * speed * elapsed;
-            zPosition -= Math.cos(degToRad(yaw)) * speed * elapsed;
-
-            joggingAngle += elapsed * 0.6; // 0.6 "fiddle factor" - makes it feel more realistic :-)
-            yPosition = Math.sin(degToRad(joggingAngle)) / 20 + 0.4
-        }
-
-        yaw += yawRate * elapsed;
-        pitch += pitchRate * elapsed;
-
-    }
-    lastTime = timeNow;
-}
-
-//
-// Keyboard handling helper functions
-//
-// handleKeyDown    ... called on keyDown event
-// handleKeyUp      ... called on keyUp event
-//
 function handleKeyDown(event) {
     // storing the pressed state for individual key
     currentlyPressedKeys[event.keyCode] = true;
@@ -408,12 +495,6 @@ function handleKeyUp(event) {
     currentlyPressedKeys[event.keyCode] = false;
 }
 
-//
-// handleKeys
-//
-// Called every time before redeawing the screen for keyboard
-// input handling. Function continuisly updates helper variables.
-//
 function handleKeys() {
     if (currentlyPressedKeys[33]) {
         // Page Up
@@ -425,33 +506,50 @@ function handleKeys() {
         pitchRate = 0;
     }
 
-    if (currentlyPressedKeys[37] || currentlyPressedKeys[65]) {
+    if (xPosition > -3.5 && (currentlyPressedKeys[37] || currentlyPressedKeys[65])) {
         // Left cursor key or A
-        yawRate = 0.1;
-    } else if (currentlyPressedKeys[39] || currentlyPressedKeys[68]) {
+        xPosition += -0.7;
+    } else if (xPosition < 3.5 && (currentlyPressedKeys[39] || currentlyPressedKeys[68])) {
         // Right cursor key or D
-        yawRate = -0.1;
-    } else {
-        yawRate = 0;
+        xPosition += 0.7;
     }
 
-    if (currentlyPressedKeys[38] || currentlyPressedKeys[87]) {
+    if (yPosition < 1.5 && (currentlyPressedKeys[38] || currentlyPressedKeys[87])) {
         // Up cursor key or W
-        speed = 0.003;
-    } else if (currentlyPressedKeys[40] || currentlyPressedKeys[83]) {
-        // Down cursor key
-        speed = -0.003;
+        yPosition += 0.5
+            //speed = 0.003;
+    } else if (yPosition > 0.5 && (currentlyPressedKeys[40] || currentlyPressedKeys[83])) {
+        yPosition -= 0.5
+            // Down cursor key
+            //speed = -0.003;
     } else {
         speed = 0;
     }
 }
 
-//
-// start
-//
-// Called when the canvas is created to get the ball rolling.
-// Figuratively, that is. There's nothing moving in this demo.
-//
+function animate() {
+    //var timeNow = new Date().getTime();
+
+    // if (lastTime != 0) {
+    //   var elapsed = timeNow - lastTime;
+
+    if (speed != 0) {
+        //xPosition -= Math.sin(degToRad(yaw)) * speed * elapsed;
+        zPosition -= Math.cos(degToRad(yaw)) * speed * elapsed;
+
+
+        //yPosition = Math.sin(degToRad(joggingAngle)) / 20 + 0.4
+    }
+
+
+    yaw += yawRate * elapsed;
+    pitch += pitchRate * elapsed;
+
+}
+
+//lastTime = timeNow;
+
+
 function start() {
     canvas = document.getElementById("glcanvas");
 
@@ -459,31 +557,34 @@ function start() {
 
     // Only continue if WebGL is available and working
     if (gl) {
+        console.log("neki ");
         gl.clearColor(0.0, 0.0, 0.0, 1.0); // Set clear color to black, fully opaque
         gl.clearDepth(1.0); // Clear everything
         gl.enable(gl.DEPTH_TEST); // Enable depth testing
         gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // Initialize the shaders; this is where all the lighting for the
         // vertices and so forth is established.
         initShaders();
-
+        console.log("neki ");
         // Next, load and set up the textures we'll be using.
         initTextures();
 
         // Initialise world objects
         loadWorld();
-
+        console.log("neki ");
         // Bind keyboard handling functions to document handlers
         document.onkeydown = handleKeyDown;
         document.onkeyup = handleKeyUp;
 
         // Set up to draw the scene periodically.
         setInterval(function() {
-            if (texturesLoaded) { // only draw scene and animate when textures are loaded.
-                requestAnimationFrame(animate);
+            if (texturesLoaded == numberOfTextures) { // only draw scene and animate when textures are loaded.
+                //requestAnimationFrame(animate);
                 handleKeys();
                 drawScene();
+
             }
         }, 15);
     }
