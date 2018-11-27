@@ -1,6 +1,10 @@
 var canvas;
 var gl;
 var shaderProgram;
+var obstaclesLocations = [];
+var speedElement;
+var scoreElement;
+var healthElement;
 
 
 var shaderSourceFragment = ` 
@@ -100,10 +104,11 @@ var worldVertexPositionBuffer;
 var worldVertexNormalBuffer;
 var worldVertexTextureCoordBuffer;
 var worldVertexIndexBuffer;
-var squareVertexPositionBuffer;
-var squareVertexNormalBuffer;
-var squareVertexTextureCoordBuffer;
-var squareVertexIndexBuffer;
+
+var shipVertexPositionBuffer;
+var shipVertexNormalBuffer;
+var shipVertexTextureCoordBuffer;
+var shipVertexIndexBuffer;
 
 // Model-view and projection matrix and model-view matrix stack
 var mvMatrixStack = [];
@@ -116,7 +121,7 @@ var metalTexture;
 var backTexture;
 
 // Variable that stores  loading state of textures.
-var numberOfTextures = 1;
+var numberOfTextures = 2;
 var texturesLoaded = 0;
 
 // Helper variables for rotation
@@ -131,14 +136,78 @@ var pitchRate = 0;
 var yaw = 0;
 var yawRate = 0;
 var xPosition = 0.0;
-var yPosition = 1;
+var yPosition = 2.75;
 var zPosition = 0.0;
-var speed = 0;
+var shipLine = 0;
+var shipAltitude = 0;
+var speed = 1;
+var score = 0;
+var health = 100;
 
-
+var intervalId
 
 // Helper variable for animation
 var lastTime = 0;
+
+
+
+function handleCollisions() {
+    for (var i = 2; i < obstaclesLocations.length; i += 3) {
+        if (zPosition == obstaclesLocations[i]) {
+            if (shipLine == obstaclesLocations[i - 2] && shipAltitude == obstaclesLocations[i - 1]) {
+                console.log("collided");
+                health -= 25;
+                if (health == 0) {
+                    console.log("lost");
+                    clearInterval(intervalId);
+                    var ctx = canvas.getContext("2d");
+                    if (ctx) {
+                        ctx.fillRect(100, 100, gl.viewportWidth, gl.viewportHeight);
+                    }
+                    overElement = document.getElementById("over");
+                    overElement.style.visibility = "visible";
+                    var audio = new Audio('/assets/Game - Over.mp3');
+                    audio.play()
+                }
+            }
+        }
+    }
+}
+
+function updateShipLine() {
+    if (xPosition > -5 && xPosition < -3 && yPosition == 2.75) {
+        shipLine = -2;
+        shipAltitude = 0;
+    } else if (xPosition > -3 && xPosition < -1 && yPosition == 2.75) {
+        shipLine = -1;
+        shipAltitude = 0;
+    } else if (xPosition > -1 && xPosition < 1 && yPosition == 2.75) {
+        shipLine = 0;
+        shipAltitude = 0;
+    } else if (xPosition > 1 && xPosition < 3 && yPosition == 2.75) {
+        shipLine = 1;
+        shipAltitude = 0;
+    } else if (xPosition > 3 && xPosition < 5 && yPosition == 2.75) {
+        shipLine = 2;
+        shipAltitude = 0;
+    } else if (xPosition > -5 && xPosition < -3 && yPosition == 3.5) {
+        shipLine = -2;
+        shipAltitude = 1;
+    } else if (xPosition > -3 && xPosition < -1 && yPosition == 3.5) {
+        shipLine = -1;
+        shipAltitude = 1;
+    } else if (xPosition > -1 && xPosition < 1 && yPosition == 3.5) {
+        shipLine = 0;
+        shipAltitude = 1;
+    } else if (xPosition > 1 && xPosition < 3 && yPosition == 3.5) {
+        shipLine = 1;
+        shipAltitude = 1;
+    } else if (xPosition > 3 && xPosition < 5 && yPosition == 3.5) {
+        shipLine = 2;
+        shipAltitude = 1;
+    }
+}
+
 
 //
 // Matrix utility functions
@@ -300,16 +369,10 @@ function initTextures() {
     metalTexture = gl.createTexture();
     metalTexture.image = new Image();
     metalTexture.image.onload = function() {
-            handleTextureLoaded(metalTexture)
-        }
-        /*
-        backTexture = gl.createTexture();
-        backTexture.image = new Image();
-        backTexture.image.onload = function() {
-            handleTextureLoaded(backTexture)
-        }
-        backTexture.image.src = "./assets/space.jpg";
-        */
+        handleTextureLoaded(metalTexture)
+    }
+    metalTexture.image.src = "./assets/metal.jpg"
+
 }
 
 function handleTextureLoaded(texture) {
@@ -367,8 +430,51 @@ function handleLoadedWorld(worldData) {
 }
 
 
-// load world
-//
+function handleLoadedShip(shipData) {
+    // Pass the normals into WebGL
+    //console.log(shipData);
+    shipVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shipData.vertexNormals), gl.STATIC_DRAW);
+    shipVertexNormalBuffer.itemSize = 3;
+    shipVertexNormalBuffer.numItems = shipData.vertexNormals.length / 3;
+
+    // Pass the texture coordinates into WebGL
+    shipVertexTextureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexTextureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shipData.vertexTextureCoords), gl.STATIC_DRAW);
+    shipVertexTextureCoordBuffer.itemSize = 2;
+    shipVertexTextureCoordBuffer.numItems = shipData.vertexTextureCoords.length / 2;
+
+    // Pass the vertex positions into WebGL
+    shipVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shipData.vertexPositions), gl.STATIC_DRAW);
+    shipVertexPositionBuffer.itemSize = 3;
+    shipVertexPositionBuffer.numItems = shipData.vertexPositions.length / 3;
+
+    // Pass the indices into WebGL
+    shipVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(shipData.indices), gl.STATIC_DRAW);
+    shipVertexIndexBuffer.itemSize = 1;
+    shipVertexIndexBuffer.numItems = shipData.indices.length;
+
+    document.getElementById("loadingtext").textContent = "";
+}
+
+
+function loadShip() {
+    var request = new XMLHttpRequest();
+    request.open("GET", "./assets/ship.json");
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            handleLoadedShip(JSON.parse(request.responseText));
+        }
+    }
+    request.send();
+}
+
 function loadWorld() {
     var request = new XMLHttpRequest();
     request.open("GET", "./assets/world.json");
@@ -380,9 +486,32 @@ function loadWorld() {
     request.send();
 }
 
+function handleLoadedObstacles(obstacleData) {
+    obstaclesLocations = obstacleData.obstaclesLocations;
+}
+
+function loadObstacles() {
+    var request = new XMLHttpRequest();
+    request.open("GET", "./assets/obstacles.json");
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            handleLoadedObstacles(JSON.parse(request.responseText));
+        }
+    }
+    request.send();
+}
+
+
+
 function drawScene() {
     // set the rendering environment to full canvas size
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+    score = -zPosition;
+    kSpeed = speed - 1;
+    speedElement.innerHTML = kSpeed.toFixed(0);
+    scoreElement.innerHTML = score.toFixed(0);
+    healthElement.innerHTML = health.toFixed(0);
+
     // Clear the canvas before we start drawing on it.
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -448,8 +577,7 @@ function drawScene() {
 
     // Now move the drawing position a bit to where we want to start
     // drawing the world.
-    mat4.rotate(mvMatrix, degToRad(-pitch), [1, 0, 0]);
-    mat4.rotate(mvMatrix, degToRad(-yaw), [0, 1, 0]);
+
     mat4.translate(mvMatrix, [-xPosition, -yPosition, -zPosition]);
 
     // Activate textures
@@ -465,6 +593,7 @@ function drawScene() {
     // Activate shininess
     gl.uniform1f(shaderProgram.materialShininessUniform, parseFloat(document.getElementById("shininess").value));
 
+    mvPushMatrix();
     // Set the vertex positions attribute for the teapot vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
@@ -483,71 +612,76 @@ function drawScene() {
 
     // Draw the teapot
     gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
+    //ship
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [-0.5, -2.5, -6]);
+    mvPushMatrix();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, shipVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    //dodaj za teksturo!
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, shipVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, shipVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipVertexIndexBuffer);
+    setMatrixUniforms();
+    gl.drawElements(gl.TRIANGLES, shipVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
+
 }
 
-function handleKeyDown(event) {
-    // storing the pressed state for individual key
-    currentlyPressedKeys[event.keyCode] = true;
-}
 
-function handleKeyUp(event) {
-    // reseting the pressed state for individual key
-    currentlyPressedKeys[event.keyCode] = false;
-}
+function handleKeys(e) {
 
-function handleKeys() {
-    if (currentlyPressedKeys[33]) {
-        // Page Up
-        pitchRate = 0.1;
-    } else if (currentlyPressedKeys[34]) {
-        // Page Down
-        pitchRate = -0.1;
-    } else {
-        pitchRate = 0;
-    }
 
-    if (xPosition > -3.5 && (currentlyPressedKeys[37] || currentlyPressedKeys[65])) {
+    if (e.code == "KeyA") {
         // Left cursor key or A
-        xPosition += -0.7;
-    } else if (xPosition < 3.5 && (currentlyPressedKeys[39] || currentlyPressedKeys[68])) {
-        // Right cursor key or D
-        xPosition += 0.7;
-    }
+        if (xPosition == -2) {
+            xPosition = -4;
+        } else if (xPosition == 0) {
+            xPosition = -2;
+        } else if (xPosition == 2) {
+            xPosition = 0;
+        } else if (xPosition == 4) {
+            xPosition = 2;
+        }
 
-    if (yPosition < 1.5 && (currentlyPressedKeys[38] || currentlyPressedKeys[87])) {
+    } else if (e.code == "KeyD") {
+        if (xPosition == -4) {
+            xPosition = -2;
+        } else if (xPosition == -2) {
+            xPosition = 0;
+        } else if (xPosition == 0) {
+            xPosition = 2;
+        } else if (xPosition == 2) {
+            xPosition = 4;
+        }
+    } else if (e.code == "ArrowUp") {
+        zPosition -= 0.5;
+        e.preventDefault();
+    } else if (e.code == "ArrowDown") {
+        zPosition += 0.5
+        e.preventDefault();
+    } else if (e.code == "KeyW" && yPosition == 2.75) {
         // Up cursor key or W
-        yPosition += 0.5
+        yPosition = 3.5
             //speed = 0.003;
-    } else if (yPosition > 0.5 && (currentlyPressedKeys[40] || currentlyPressedKeys[83])) {
-        yPosition -= 0.5
+    } else if (e.code = "KeyS" && yPosition == 3.5) {
+        yPosition = 2.75
             // Down cursor key
             //speed = -0.003;
-    } else {
-        speed = 0;
     }
 }
 
-function animate() {
-    //var timeNow = new Date().getTime();
-
-    // if (lastTime != 0) {
-    //   var elapsed = timeNow - lastTime;
-
-    if (speed != 0) {
-        //xPosition -= Math.sin(degToRad(yaw)) * speed * elapsed;
-        zPosition -= Math.cos(degToRad(yaw)) * speed * elapsed;
-
-
-        //yPosition = Math.sin(degToRad(joggingAngle)) / 20 + 0.4
-    }
-
-
-    yaw += yawRate * elapsed;
-    pitch += pitchRate * elapsed;
+function initUI() {
+    speedElement = document.getElementById("speed");
+    scoreElement = document.getElementById("score");
+    healthElement = document.getElementById("health");
 
 }
 
-//lastTime = timeNow;
+
 
 
 function start() {
@@ -557,32 +691,33 @@ function start() {
 
     // Only continue if WebGL is available and working
     if (gl) {
-        console.log("neki ");
         gl.clearColor(0.0, 0.0, 0.0, 1.0); // Set clear color to black, fully opaque
         gl.clearDepth(1.0); // Clear everything
         gl.enable(gl.DEPTH_TEST); // Enable depth testing
         gl.depthFunc(gl.LEQUAL); // Near things obscure far things
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
         // Initialize the shaders; this is where all the lighting for the
         // vertices and so forth is established.
+        initUI();
         initShaders();
-        console.log("neki ");
         // Next, load and set up the textures we'll be using.
         initTextures();
-
+        loadShip();
         // Initialise world objects
         loadWorld();
-        console.log("neki ");
-        // Bind keyboard handling functions to document handlers
-        document.onkeydown = handleKeyDown;
-        document.onkeyup = handleKeyUp;
+        loadObstacles();
+
 
         // Set up to draw the scene periodically.
-        setInterval(function() {
+        intervalId = setInterval(function() {
             if (texturesLoaded == numberOfTextures) { // only draw scene and animate when textures are loaded.
-                //requestAnimationFrame(animate);
-                handleKeys();
+                //zPosition -= 0.6 * speed;
+                // speed += 0.1;
+                updateShipLine();
+                handleCollisions();
+
+
+                document.addEventListener("keypress", handleKeys);
                 drawScene();
 
             }
