@@ -15,11 +15,21 @@
 
 <body onload="start()">
     <h1>Space Racer</h1>
-    <div id="content">
+    <div class="container">
         <canvas id="glcanvas" width="1280px" height="720px">
-				No <code>&lt;canvas&gt;</code> suppport in your browser.
-			</canvas>
+                    No <code>&lt;canvas&gt;</code> suppport in your browser.
+            </canvas>
         <div id="loadingtext">Loading world...</div>
+        <div id="overlay">
+            <div>Speed: <span id="speed"></span></div>
+            <div>Score: <span id="score"></span></div>
+            <div>Health: <span id="health"></span></div>
+        </div>
+        <div id="over"><img src="/assets/gameover.jpg"></div>
+    </div>
+
+    <div id="content">
+
         <br />
         <input type="checkbox" id="specular" checked /> Show specular highlight<br/>
         <input type="checkbox" id="lighting" checked /> Use lighting<br/> Texture:
