@@ -100,10 +100,11 @@ var worldVertexPositionBuffer;
 var worldVertexNormalBuffer;
 var worldVertexTextureCoordBuffer;
 var worldVertexIndexBuffer;
-var squareVertexPositionBuffer;
-var squareVertexNormalBuffer;
-var squareVertexTextureCoordBuffer;
-var squareVertexIndexBuffer;
+
+var shipVertexPositionBuffer;
+var shipVertexNormalBuffer;
+var shipVertexTextureCoordBuffer;
+var shipVertexIndexBuffer;
 
 // Model-view and projection matrix and model-view matrix stack
 var mvMatrixStack = [];
@@ -366,6 +367,39 @@ function handleLoadedWorld(worldData) {
     document.getElementById("loadingtext").textContent = "";
 }
 
+function handleLoadedShip(shipData) {
+    // Pass the normals into WebGL
+    console.log(shipData);
+    shipVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shipData.vertexNormals), gl.STATIC_DRAW);
+    shipVertexNormalBuffer.itemSize = 3;
+    shipVertexNormalBuffer.numItems = shipData.vertexNormals.length / 3;
+
+    // Pass the texture coordinates into WebGL
+    shipVertexTextureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexTextureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shipData.vertexTextureCoords), gl.STATIC_DRAW);
+    shipVertexTextureCoordBuffer.itemSize = 2;
+    shipVertexTextureCoordBuffer.numItems = shipData.vertexTextureCoords.length / 2;
+
+    // Pass the vertex positions into WebGL
+    shipVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shipData.vertexPositions), gl.STATIC_DRAW);
+    shipVertexPositionBuffer.itemSize = 3;
+    shipVertexPositionBuffer.numItems = shipData.vertexPositions.length / 3;
+
+    // Pass the indices into WebGL
+    shipVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(shipData.indices), gl.STATIC_DRAW);
+    shipVertexIndexBuffer.itemSize = 1;
+    shipVertexIndexBuffer.numItems = shipData.indices.length;
+
+    document.getElementById("loadingtext").textContent = "";
+}
+
 
 // load world
 //
@@ -375,6 +409,17 @@ function loadWorld() {
     request.onreadystatechange = function() {
         if (request.readyState == 4) {
             handleLoadedWorld(JSON.parse(request.responseText));
+        }
+    }
+    request.send();
+}
+
+function loadShip() {
+    var request = new XMLHttpRequest();
+    request.open("GET", "./assets/ship.json");
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            handleLoadedShip(JSON.parse(request.responseText));
         }
     }
     request.send();
@@ -436,6 +481,10 @@ function drawScene() {
         );
     }
 
+    ///
+    ///World
+    ///
+
     // Textures
     var texture = document.getElementById("texture").value;
 
@@ -464,7 +513,7 @@ function drawScene() {
 
     // Activate shininess
     gl.uniform1f(shaderProgram.materialShininessUniform, parseFloat(document.getElementById("shininess").value));
-
+    mvPushMatrix();
     // Set the vertex positions attribute for the teapot vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
@@ -483,6 +532,27 @@ function drawScene() {
 
     // Draw the teapot
     gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
+
+    ///
+    ///ship
+    ///
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [-0.5, -0.5, zPosition-4]);
+    mvPushMatrix();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, shipVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    //dodaj za teksturo!
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, shipVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, shipVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipVertexIndexBuffer);
+    setMatrixUniforms();
+    gl.drawElements(gl.TRIANGLES, shipVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
+
+
 }
 
 function handleKeyDown(event) {
@@ -573,6 +643,7 @@ function start() {
 
         // Initialise world objects
         loadWorld();
+        loadShip();
         console.log("neki ");
         // Bind keyboard handling functions to document handlers
         document.onkeydown = handleKeyDown;
