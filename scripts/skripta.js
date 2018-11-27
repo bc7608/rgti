@@ -151,9 +151,11 @@ var lastTime = 0;
 
 
 
-function handleCollisions() {
+function handleCollisions(callback) {
     for (var i = 2; i < obstaclesLocations.length; i += 3) {
-        if (zPosition == obstaclesLocations[i]) {
+        console.log(zPosition, obstaclesLocations[i]);
+        if (zPosition <= obstaclesLocations[i] + 0.05 && zPosition >= obstaclesLocations[i]) {
+            console.log("uatafak");
             if (shipLine == obstaclesLocations[i - 2] && shipAltitude == obstaclesLocations[i - 1]) {
                 console.log("collided");
                 health -= 25;
@@ -162,16 +164,20 @@ function handleCollisions() {
                     clearInterval(intervalId);
                     var ctx = canvas.getContext("2d");
                     if (ctx) {
-                        ctx.fillRect(100, 100, gl.viewportWidth, gl.viewportHeight);
+                        ctx.fillRect(0, 0, gl.viewportWidth, gl.viewportHeight);
                     }
-                    overElement = document.getElementById("over");
-                    overElement.style.visibility = "visible";
-                    var audio = new Audio('/assets/Game - Over.mp3');
-                    audio.play()
+                    setTimeout(function() {
+                        overElement = document.getElementById("over");
+                        overElement.style.visibility = "visible";
+                        var audio = new Audio('/assets/Game - Over.mp3');
+                        audio.play()
+                    }, 1000)
+
                 }
             }
         }
     }
+    callback();
 }
 
 function updateShipLine() {
@@ -633,10 +639,7 @@ function drawScene() {
 
 
 function handleKeys(e) {
-
-
     if (e.code == "KeyA") {
-        // Left cursor key or A
         if (xPosition == -2) {
             xPosition = -4;
         } else if (xPosition == 0) {
@@ -646,7 +649,6 @@ function handleKeys(e) {
         } else if (xPosition == 4) {
             xPosition = 2;
         }
-
     } else if (e.code == "KeyD") {
         if (xPosition == -4) {
             xPosition = -2;
@@ -664,13 +666,14 @@ function handleKeys(e) {
         zPosition += 0.5
         e.preventDefault();
     } else if (e.code == "KeyW" && yPosition == 2.75) {
-        // Up cursor key or W
         yPosition = 3.5
-            //speed = 0.003;
     } else if (e.code = "KeyS" && yPosition == 3.5) {
         yPosition = 2.75
-            // Down cursor key
-            //speed = -0.003;
+
+    } else if (e.code = "KeyE") {
+        speed = 0;
+        clearInterval(intervalId);
+        e.preventDefault()
     }
 }
 
@@ -700,10 +703,8 @@ function start() {
         // vertices and so forth is established.
         initUI();
         initShaders();
-        // Next, load and set up the textures we'll be using.
         initTextures();
         loadShip();
-        // Initialise world objects
         loadWorld();
         loadObstacles();
 
@@ -711,16 +712,24 @@ function start() {
         // Set up to draw the scene periodically.
         intervalId = setInterval(function() {
             if (texturesLoaded == numberOfTextures) { // only draw scene and animate when textures are loaded.
-                //zPosition -= 0.6 * speed;
-                // speed += 0.1;
-                updateShipLine();
-                handleCollisions();
+                zPosition -= 0.25 * speed;
+                if (zPosition == -200) {
+                    speed *= 2;
+                }
+                //speed += 0.005;
+
+                handleCollisions(function() {
+                    updateShipLine();
+                    document.addEventListener("keypress", handleKeys);
+                    drawScene();
+                });
 
 
-                document.addEventListener("keypress", handleKeys);
-                drawScene();
+
+
 
             }
         }, 15);
     }
 }
+dd
