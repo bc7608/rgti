@@ -131,13 +131,17 @@ var mvMatrix = mat4.create();
 var pMatrix = mat4.create();
 
 // Variable for storing textures
-var shipTexture;
+var shipBlueTexture;
+var shipGreenTexture;
+var shipYellowTexture;
+var shipOrangeTexture;
+var shipRedTexture;
 var metalTexture;
 var healthTexture;
 var boostTexture;
 
 // Variable that stores  loading state of textures.
-var numberOfTextures = 5;
+var numberOfTextures = 9;
 var texturesLoaded = 0;
 
 // Helper variables for rotation
@@ -426,12 +430,40 @@ function setMatrixUniforms() {
 }
 
 function initTextures() {
-    shipTexture = gl.createTexture();
-    shipTexture.image = new Image();
-    shipTexture.image.onload = function() {
-        handleTextureLoaded(shipTexture)
+    shipBlueTexture = gl.createTexture();
+    shipBlueTexture.image = new Image();
+    shipBlueTexture.image.onload = function() {
+        handleTextureLoaded(shipBlueTexture)
     }
-    shipTexture.image.src = "./assets/shipTex.jpg";
+    shipBlueTexture.image.src = "./assets/shipBlue.jpg";
+
+    shipGreenTexture = gl.createTexture();
+    shipGreenTexture.image = new Image();
+    shipGreenTexture.image.onload = function() {
+        handleTextureLoaded(shipGreenTexture)
+    }
+    shipGreenTexture.image.src = "./assets/shipGreen.png";
+
+    shipYellowTexture = gl.createTexture();
+    shipYellowTexture.image = new Image();
+    shipYellowTexture.image.onload = function() {
+        handleTextureLoaded(shipYellowTexture)
+    }
+    shipYellowTexture.image.src = "./assets/shipYellow.jpg";
+    
+    shipOrangeTexture = gl.createTexture();
+    shipOrangeTexture.image = new Image();
+    shipOrangeTexture.image.onload = function() {
+        handleTextureLoaded(shipOrangeTexture)
+    }
+    shipOrangeTexture.image.src = "./assets/shipOrange.jpg";
+
+    shipRedTexture = gl.createTexture();
+    shipRedTexture.image = new Image();
+    shipRedTexture.image.onload = function() {
+        handleTextureLoaded(shipRedTexture)
+    }
+    shipRedTexture.image.src = "./assets/shipRed.jpg";
 
     metalTexture = gl.createTexture();
     metalTexture.image = new Image();
@@ -706,11 +738,32 @@ function drawScene() {
     // and 100 units away from the camera.
     mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
 
-    var specularHighlights = document.getElementById("specular").checked;
+    //nastavis ce hoces specular
+    var specularHighlights = 1;
     gl.uniform1i(shaderProgram.showSpecularHighlightsUniform, specularHighlights);
 
     // Ligthing
-    var lighting = document.getElementById("lighting").checked;
+    var lighting = 1;
+
+    // nastavi RGB ambienta
+    var ambientR = 0.3;
+    var ambientG = 0.3;
+    var ambientB = 0.3;
+
+    //nastavi pozicijo prve luci
+    var lightPositionX = 0.1;
+    var lightPositionY = 3;
+    var lightPositionZ = -10;
+
+    //nastavi specular RGB
+    var specularR = 1;
+    var specularG = 1;
+    var specularB = 1;
+
+    //nastavi diffuse RGB
+    var diffuseR = 0.8;
+    var diffuseG = 0.8;
+    var diffuseB = 0.8;
 
     // set uniform to the value of the checkbox.
     gl.uniform1i(shaderProgram.useLightingUniform, lighting);
@@ -719,35 +772,32 @@ function drawScene() {
     if (lighting) {
         gl.uniform3f(
             shaderProgram.ambientColorUniform,
-            parseFloat(document.getElementById("ambientR").value),
-            parseFloat(document.getElementById("ambientG").value),
-            parseFloat(document.getElementById("ambientB").value)
+            ambientR,
+            ambientG,
+            ambientB
         );
 
         gl.uniform3f(
             shaderProgram.pointLightingLocationUniform,
-            parseFloat(document.getElementById("lightPositionX").value),
-            parseFloat(document.getElementById("lightPositionY").value),
-            parseFloat(document.getElementById("lightPositionZ").value)
+            lightPositionX,
+            lightPositionY,
+            lightPositionZ
         );
 
         gl.uniform3f(
             shaderProgram.pointLightingSpecularColorUniform,
-            parseFloat(document.getElementById("specularR").value),
-            parseFloat(document.getElementById("specularG").value),
-            parseFloat(document.getElementById("specularB").value)
+            specularR,
+            specularG,
+            specularB
         );
 
         gl.uniform3f(
             shaderProgram.pointLightingDiffuseColorUniform,
-            parseFloat(document.getElementById("diffuseR").value),
-            parseFloat(document.getElementById("diffuseG").value),
-            parseFloat(document.getElementById("diffuseB").value)
+            diffuseR,
+            diffuseG,
+            diffuseB
         );
     }
-
-    // Textures
-    var texture = document.getElementById("texture").value;
 
     // set uniform to the value of the checkbox.
     gl.uniform1i(shaderProgram.useTexturesUniform, true);
@@ -786,14 +836,15 @@ function drawScene() {
 
     // Activate textures
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, metalTexture);
+    gl.bindTexture(gl.TEXTURE_2D, shipBlueTexture);
     gl.uniform1i(shaderProgram.samplerUniform, 0);
 
     // Activate shininess
-    gl.uniform1f(shaderProgram.materialShininessUniform, parseFloat(document.getElementById("shininess").value));
+    var shininess = 40;
+    gl.uniform1f(shaderProgram.materialShininessUniform, shininess);
 
     mvPushMatrix();
-    // Set the vertex positions attribute for the teapot vertices.
+    // Set the vertex positions attribute for the road vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
@@ -809,14 +860,20 @@ function drawScene() {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, worldVertexIndexBuffer);
     setMatrixUniforms();
 
-    // Draw the teapot
+    // Draw the lane
     gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
     mvPopMatrix();
+    
+    
     //ship
-
     mat4.identity(mvMatrix);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, shipTexture);
+    if(health == 100) gl.bindTexture(gl.TEXTURE_2D, shipGreenTexture);
+    else if(health == 75) gl.bindTexture(gl.TEXTURE_2D, shipYellowTexture);
+    else if(health == 50) gl.bindTexture(gl.TEXTURE_2D, shipOrangeTexture);
+    else if(health == 25) gl.bindTexture(gl.TEXTURE_2D, shipRedTexture);
+    //else if(health == 25) gl.bindTexture(gl.TEXTURE_2D, shipOrangeTexture);
+    //gl.bindTexture(gl.TEXTURE_2D, shipBlueTexture);
     gl.uniform1i(shaderProgram.samplerUniform, 0);
     mat4.translate(mvMatrix, [0, -2, -8]);
     mat4.scale(mvMatrix, [0.2, 0.2, 0.2]);
@@ -996,9 +1053,9 @@ function start() {
         loadObstacles();
 
 
-        // Set up to draw the scene periodically.
+        //Zacni izrisovat
         intervalId = setInterval(function() {
-            if (texturesLoaded == numberOfTextures) { // only draw scene and animate when textures are loaded.
+            if (texturesLoaded == numberOfTextures) { //Pocakaj da se nalozijo teksture
                 zPosition -= 0.25 * speed;
                 if (zPosition == -200) {
                     speed *= 2;
