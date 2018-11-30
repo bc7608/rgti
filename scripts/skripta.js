@@ -113,6 +113,7 @@ var shipVertexNormalBuffer;
 var shipVertexTextureCoordBuffer;
 var shipVertexIndexBuffer;
 
+
 var powerVertexPositionBuffer;
 var powerVertexNormalBuffer;
 var powerVertexTextureCoordBuffer;
@@ -138,6 +139,7 @@ var healthTexture;
 var boostTexture;
 
 // Variable that stores  loading state of textures.
+
 var numberOfTextures = 6;
 var texturesLoaded = 0;
 
@@ -427,12 +429,12 @@ function setMatrixUniforms() {
 }
 
 function initTextures() {
-    earthTexture = gl.createTexture();
-    earthTexture.image = new Image();
-    earthTexture.image.onload = function() {
-        handleTextureLoaded(earthTexture)
+    shipTexture = gl.createTexture();
+    shipTexture.image = new Image();
+    shipTexture.image.onload = function() {
+        handleTextureLoaded(shipTexture)
     }
-    earthTexture.image.src = "./assets/earth.jpg";
+    shipTexture.image.src = "./assets/shipTex.jpg";
 
     metalTexture = gl.createTexture();
     metalTexture.image = new Image();
@@ -469,7 +471,15 @@ function initTextures() {
     }
     backTexture.image.src = "./assets/bgPic1.png";
 
+    backTexture = gl.createTexture();
+    backTexture.image = new Image();
+    backTexture.image.onload = function() {
+        handleTextureLoaded(backTexture)
+    }
+    backTexture.image.src = "./assets/bgPic1.png"
+
 }
+
 
 function handleTextureLoaded(texture) {
 
@@ -630,6 +640,43 @@ function handleLoadedShip(shipData) {
     document.getElementById("loadingtext").textContent = "";
 }
 
+
+
+function handleLoadedBackground(backData) {
+    // Pass the normals into WebGL
+    //console.log(backData);
+    backVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backData.vertexNormals), gl.STATIC_DRAW);
+    backVertexNormalBuffer.itemSize = 3;
+    backVertexNormalBuffer.numItems = backData.vertexNormals.length / 3;
+
+    // Pass the texture coordinates into WebGL
+    backVertexTextureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexTextureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backData.vertexTextureCoords), gl.STATIC_DRAW);
+    backVertexTextureCoordBuffer.itemSize = 2;
+    backVertexTextureCoordBuffer.numItems = backData.vertexTextureCoords.length / 2;
+
+    // Pass the vertex positions into WebGL
+    backVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backData.vertexPositions), gl.STATIC_DRAW);
+    backVertexPositionBuffer.itemSize = 3;
+    backVertexPositionBuffer.numItems = backData.vertexPositions.length / 3;
+
+    // Pass the indices into WebGL
+    backVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, backVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(backData.indices), gl.STATIC_DRAW);
+    backVertexIndexBuffer.itemSize = 1;
+    backVertexIndexBuffer.numItems = backData.indices.length;
+
+    document.getElementById("loadingtext").textContent = "";
+}
+
+
+
 function loadShip() {
     var request = new XMLHttpRequest();
     request.open("GET", "./assets/ship10.json");
@@ -663,6 +710,16 @@ function loadWorld() {
     request.send();
 }
 
+function loadBackground() {
+    var request = new XMLHttpRequest();
+    request.open("GET", "./assets/background.json");
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            handleLoadedBackground(JSON.parse(request.responseText));
+        }
+    }
+    request.send();
+}
 function handleLoadedObstacles(obstacleData) {
     obstaclesLocations = obstacleData.obstaclesLocations;
     nextObstacle = obstaclesLocations[0][2];
@@ -782,6 +839,31 @@ function drawScene() {
     gl.drawElements(gl.TRIANGLES, backVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
     mvPopMatrix();
 
+    //background
+    mat4.identity(mvMatrix);
+    //mat4.translate(mvMatrix, [-xPosition, -yPosition, -zPosition]);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, backTexture);
+    gl.uniform1i(shaderProgram.samplerUniform, 0);
+    mvPushMatrix();
+    // Set the vertex positions attribute for the teapot vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, backVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the texture coordinates attribute for the vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, backVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the normals attribute for the vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, backVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the index for the vertices.
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, backVertexIndexBuffer);
+    setMatrixUniforms();
+    // Draw the teapot
+    gl.drawElements(gl.TRIANGLES, backVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
+
+
+
     // Set the drawing position to the "identity" point, which is
     // the center of the scene.
     mat4.identity(mvMatrix);
@@ -803,22 +885,19 @@ function drawScene() {
     // Set the vertex positions attribute for the teapot vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, worldVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
     // Set the texture coordinates attribute for the vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexTextureCoordBuffer);
     gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, worldVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
     // Set the normals attribute for the vertices.
     gl.bindBuffer(gl.ARRAY_BUFFER, worldVertexNormalBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, worldVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
     // Set the index for the vertices.
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, worldVertexIndexBuffer);
     setMatrixUniforms();
-
     // Draw the teapot
     gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
     mvPopMatrix();
+
 
     //ship
     mat4.identity(mvMatrix);
@@ -827,6 +906,8 @@ function drawScene() {
     gl.uniform1i(shaderProgram.samplerUniform, 0);
     mat4.translate(mvMatrix, [0, -2, -8]);
     mat4.scale(mvMatrix, [0.2, 0.2, 0.2]);
+
+    
     mvPushMatrix();
     mat4.rotate(mvMatrix, degToRad(180), [0, 1, 0]);
     gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexPositionBuffer);
@@ -994,13 +1075,17 @@ function start() {
         // vertices and so forth is established.
         initObstacleBuffer();
         initUI();
+        console.log("UI pognan");
         initShaders();
+        console.log("ShaderProgram pognan");
         initTextures();
         loadBackground();
         loadPowerUps();
+        console.log("Teksture inicializirane");
         loadShip();
         loadWorld();
         loadObstacles();
+        console.log("Objekti nalozeni");
 
 
         // Set up to draw the scene periodically.
