@@ -96,7 +96,7 @@ var shaderProgram;
 var obstaclesLocations = [];
 var powerUpLocations = [];
 var pickedPowerUps = [];
-var obL = 13;
+var obL = 38;
 var pwL = 5;
 var scoreElement;
 var healthElement;
@@ -131,13 +131,17 @@ var mvMatrix = mat4.create();
 var pMatrix = mat4.create();
 
 // Variable for storing textures
-var shipTexture;
+var shipBlueTexture;
+var shipGreenTexture;
+var shipYellowTexture;
+var shipOrangeTexture;
+var shipRedTexture;
 var metalTexture;
 var healthTexture;
 var boostTexture;
 
 // Variable that stores  loading state of textures.
-var numberOfTextures = 5;
+var numberOfTextures = 9;
 var texturesLoaded = 0;
 
 // Helper variables for rotation
@@ -174,6 +178,7 @@ function handleCollisions(callback) {
             if (obstaclesLocations[obIndex][i] == nextObstacle) {
                 if (shipLine == obstaclesLocations[obIndex][i - 2] && shipAltitude == obstaclesLocations[obIndex][i - 1]) {
                     health -= 25;
+                    new Audio('/assets/crash.mp3').play();
                     if (health == 0) {
                         clearInterval(intervalId);
                         setTimeout(function() {
@@ -190,19 +195,22 @@ function handleCollisions(callback) {
 
         obIndex++;
         nextObstacle = obstaclesLocations[obIndex][2];
+        console.log(nextObstacle);
 
     }
-    if (zPosition - 9 == nextPowUp) {
+    if (zPosition - 13 == nextPowUp) {
         for (var i = 0; i < powerUpLocations[pwIndex].length; i++) {
             if (powerUpLocations[pwIndex][i] == nextPowUp) {
                 if (shipLine == powerUpLocations[pwIndex][i - 2] && shipAltitude == powerUpLocations[pwIndex][i - 1]) {
                     if (determinePowerUp() == "health") {
                         if (health < 100) {
+                            new Audio('/assets/healthboost.mp3').play();
                             console.log("health picked");
                             health += 25;
                         }
                     } else {
                         console.log("speedboost picked");
+                        new Audio('/assets/speedboost.mp3').play();
                         speed *= 2;
                         multiplier *= 2;
                         setTimeout(speedBoost, 1500);
@@ -426,12 +434,38 @@ function setMatrixUniforms() {
 }
 
 function initTextures() {
-    shipTexture = gl.createTexture();
-    shipTexture.image = new Image();
-    shipTexture.image.onload = function() {
-        handleTextureLoaded(shipTexture)
+    shipBlueTexture = gl.createTexture();
+    shipBlueTexture.image = new Image();
+    shipBlueTexture.image.onload = function() {
+        handleTextureLoaded(shipBlueTexture)
     }
-    shipTexture.image.src = "./assets/shipTex.jpg";
+    shipBlueTexture.image.src = "./assets/shipBlue.jpg";
+
+    shipGreenTexture = gl.createTexture();
+    shipGreenTexture.image = new Image();
+    shipGreenTexture.image.onload = function() {
+        handleTextureLoaded(shipGreenTexture)
+    }
+    shipGreenTexture.image.src = "./assets/shipGreen.png";
+    shipYellowTexture = gl.createTexture();
+    shipYellowTexture.image = new Image();
+    shipYellowTexture.image.onload = function() {
+        handleTextureLoaded(shipYellowTexture)
+    }
+    shipYellowTexture.image.src = "./assets/shipYellow.jpg";
+
+    shipOrangeTexture = gl.createTexture();
+    shipOrangeTexture.image = new Image();
+    shipOrangeTexture.image.onload = function() {
+        handleTextureLoaded(shipOrangeTexture)
+    }
+    shipOrangeTexture.image.src = "./assets/shipOrange.jpg";
+    shipRedTexture = gl.createTexture();
+    shipRedTexture.image = new Image();
+    shipRedTexture.image.onload = function() {
+        handleTextureLoaded(shipRedTexture)
+    }
+    shipRedTexture.image.src = "./assets/shipRed.jpg";
 
     metalTexture = gl.createTexture();
     metalTexture.image = new Image();
@@ -706,11 +740,28 @@ function drawScene() {
     // and 100 units away from the camera.
     mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
 
-    var specularHighlights = document.getElementById("specular").checked;
+    var specularHighlights = 1;
     gl.uniform1i(shaderProgram.showSpecularHighlightsUniform, specularHighlights);
 
     // Ligthing
-    var lighting = document.getElementById("lighting").checked;
+    var lighting = 1
+
+    // nastavi RGB ambienta
+    var ambientR = 0.3;
+    var ambientG = 0.3;
+    var ambientB = 0.3;
+    //nastavi pozicijo prve luci
+    var lightPositionX = 0.1;
+    var lightPositionY = 3;
+    var lightPositionZ = -10;
+    //nastavi specular RGB
+    var specularR = 1;
+    var specularG = 1;
+    var specularB = 1;
+    //nastavi diffuse RGB
+    var diffuseR = 0.8;
+    var diffuseG = 0.8;
+    var diffuseB = 0.8;
 
     // set uniform to the value of the checkbox.
     gl.uniform1i(shaderProgram.useLightingUniform, lighting);
@@ -719,35 +770,35 @@ function drawScene() {
     if (lighting) {
         gl.uniform3f(
             shaderProgram.ambientColorUniform,
-            parseFloat(document.getElementById("ambientR").value),
-            parseFloat(document.getElementById("ambientG").value),
-            parseFloat(document.getElementById("ambientB").value)
+            ambientR,
+            ambientG,
+            ambientB
         );
 
         gl.uniform3f(
             shaderProgram.pointLightingLocationUniform,
-            parseFloat(document.getElementById("lightPositionX").value),
-            parseFloat(document.getElementById("lightPositionY").value),
-            parseFloat(document.getElementById("lightPositionZ").value)
+            lightPositionX,
+            lightPositionY,
+            lightPositionZ
         );
 
         gl.uniform3f(
             shaderProgram.pointLightingSpecularColorUniform,
-            parseFloat(document.getElementById("specularR").value),
-            parseFloat(document.getElementById("specularG").value),
-            parseFloat(document.getElementById("specularB").value)
+            specularR,
+            specularG,
+            specularB
         );
 
         gl.uniform3f(
             shaderProgram.pointLightingDiffuseColorUniform,
-            parseFloat(document.getElementById("diffuseR").value),
-            parseFloat(document.getElementById("diffuseG").value),
-            parseFloat(document.getElementById("diffuseB").value)
+            diffuseR,
+            diffuseG,
+            diffuseB
         );
     }
 
     // Textures
-    var texture = document.getElementById("texture").value;
+
 
     // set uniform to the value of the checkbox.
     gl.uniform1i(shaderProgram.useTexturesUniform, true);
@@ -786,11 +837,12 @@ function drawScene() {
 
     // Activate textures
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, metalTexture);
+    gl.bindTexture(gl.TEXTURE_2D, shipBlueTexture);
     gl.uniform1i(shaderProgram.samplerUniform, 0);
 
     // Activate shininess
-    gl.uniform1f(shaderProgram.materialShininessUniform, parseFloat(document.getElementById("shininess").value));
+    var shininess = 40;
+    gl.uniform1f(shaderProgram.materialShininessUniform, shininess);
 
     mvPushMatrix();
     // Set the vertex positions attribute for the teapot vertices.
@@ -809,14 +861,19 @@ function drawScene() {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, worldVertexIndexBuffer);
     setMatrixUniforms();
 
-    // Draw the teapot
+    // Draw the lane
     gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
     mvPopMatrix();
     //ship
 
     mat4.identity(mvMatrix);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, shipTexture);
+    if (health == 100) gl.bindTexture(gl.TEXTURE_2D, shipGreenTexture);
+    else if (health == 75) gl.bindTexture(gl.TEXTURE_2D, shipYellowTexture);
+    else if (health == 50) gl.bindTexture(gl.TEXTURE_2D, shipOrangeTexture);
+    else if (health == 25) gl.bindTexture(gl.TEXTURE_2D, shipRedTexture);
+
+
     gl.uniform1i(shaderProgram.samplerUniform, 0);
     mat4.translate(mvMatrix, [0, -2, -8]);
     mat4.scale(mvMatrix, [0.2, 0.2, 0.2]);
@@ -873,6 +930,72 @@ function drawScene() {
         mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
         drawPowerUps(4);
     }
+    if (pickedPowerUps.length < 6) {
+
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition, -yPosition + 0.8, -zPosition - 350]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(5);
+
+    }
+
+    if (pickedPowerUps.length < 7) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition, -yPosition + 0.8, -zPosition - 400]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(6);
+    }
+
+    if (pickedPowerUps.length < 8) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition + 2, -yPosition + 0.8, -zPosition - 460]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(7);
+    }
+
+    if (pickedPowerUps.length < 9) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition + 2, -yPosition + 0.8, -zPosition - 550]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(8);
+    }
+    if (pickedPowerUps.length < 10) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition - 1, -yPosition + 0.8, -zPosition - 590]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(9);
+    }
+    if (pickedPowerUps.length < 11) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition - 2, -yPosition + 0.8, -zPosition - 660]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(10);
+    }
+    if (pickedPowerUps.length < 12) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition + 2, -yPosition + 0.8, -zPosition - 700]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(11);
+    }
+    if (pickedPowerUps.length < 13) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition + 2, -yPosition + 0.8, -zPosition - 750]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(12);
+    }
+    if (pickedPowerUps.length < 14) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition - 1, -yPosition + 0.8, -zPosition - 800]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(13);
+    }
+    if (pickedPowerUps.length < 15) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition - 2, -yPosition + 0.8, -zPosition - 900]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(14);
+    }
+
 
 }
 
@@ -881,7 +1004,6 @@ function drawPowerUps(index) {
     mvPushMatrix();
     gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, powerVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
-    //dodaj za teksturo!
     gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexTextureCoordBuffer);
     gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, powerVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
     var texture = powerUpBonusBuffer[index];
@@ -940,20 +1062,6 @@ function handleKeys(e) {
     } else if (e.code = "KeyS" && yPosition == 3.5) {
         yPosition = 2.75
 
-    } else if (e.code = "KeyE" && (yPosition == 2.75 || yPosition == 3.5)) {
-
-
-        if (!pauseFlag) {
-
-            previousSpeed = speed;
-            speed = 0;
-            //e.preventDefault();
-            pauseFlag = true;
-        } else {
-            speed = previousSpeed;
-            pauseFlag = false;
-
-        }
 
 
     } else {
@@ -972,6 +1080,7 @@ function initUI() {
 
 
 function start() {
+    new Audio("/assets/song.mp3").play();
     canvas = document.getElementById("glcanvas");
 
     gl = initGL(canvas); // Initialize the GL context
@@ -996,11 +1105,15 @@ function start() {
         loadObstacles();
 
 
-        // Set up to draw the scene periodically.
+
         intervalId = setInterval(function() {
-            if (texturesLoaded == numberOfTextures) { // only draw scene and animate when textures are loaded.
+            if (texturesLoaded == numberOfTextures) { //Pocakaj da se nalozijo teksture
                 zPosition -= 0.25 * speed;
                 if (zPosition == -200) {
+                    speed *= 2;
+                } else if (zPosition == -500) {
+                    speed *= 2;
+                } else if (zPosition == -700) {
                     speed *= 2;
                 }
                 // if (!pauseFlag) {
@@ -1009,6 +1122,7 @@ function start() {
                     updateShipLine();
                     document.addEventListener("keypress", handleKeys);
                     drawScene();
+
                 });
                 //}
 

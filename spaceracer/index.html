@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Space Racer</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" href="./style/style.css" type="text/css">
+    <script type="text/javascript" src="./scripts/glMatrix-0.9.5.min.js"></script>
+    <script src="./scripts/skripta.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        function showValue(id, newValue) {
+            document.getElementById(id + "span").innerHTML = " " + newValue;
+        }
+    </script>
+</head>
+
+<body onload="start()">
+    <h1>Space Racer</h1>
+    <div class="container">
+        <canvas id="glcanvas" width="1280px" height="720px">
+                    No <code>&lt;canvas&gt;</code> suppport in your browser.
+            </canvas>
+        <div id="loadingtext">Loading world...</div>
+        <div id="overlay">
+            <div>Score: <span id="score"></span></div>
+            <div>Health: <span id="health"></span></div>
+        </div>
+        <div id="over"><img src="/assets/gameover.jpg"></div>
+    </div>
+
+    <div id="content">
+
+    </div>
+</body>
+
+</html>

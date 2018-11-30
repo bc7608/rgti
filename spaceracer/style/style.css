@@ -1,0 +1,56 @@
+#content {
+    width: 100%;
+    text-align: center;
+}
+
+.container {
+    position: relative;
+}
+
+#over {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background-image: url("/assets/gameover.jpg");
+    visibility: hidden;
+}
+
+#overlay {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    background-color: rgba(0, 0, 0, 0);
+    color: white;
+    font-family: monospace;
+    font-size: 8ex;
+    padding: 0.5em;
+}
+
+canvas {
+    display: inline;
+    border: 1px solid black;
+}
+
+h1 {
+    text-align: left;
+}
+
+h2 {
+    text-align: left;
+}
+
+ul {
+    text-align: left;
+}
+
+td {
+    width: 200px;
+}
+
+#loadingtext {
+    position: absolute;
+    top: 250px;
+    left: 150px;
+    font-size: 2em;
+    color: white;
+}
