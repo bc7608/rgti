@@ -1,12 +1,3 @@
-var canvas;
-var gl;
-var shaderProgram;
-var obstaclesLocations = [];
-var speedElement;
-var scoreElement;
-var healthElement;
-
-
 var shaderSourceFragment = ` 
    precision mediump float;
 
@@ -97,7 +88,19 @@ var shaderSourceVertex = `
 		        vTextureCoord = aTextureCoord;
 		        vTransformedNormal = uNMatrix * aVertexNormal;
 		    }
-    `
+`
+
+var canvas;
+var gl;
+var shaderProgram;
+var obstaclesLocations = [];
+var powerUpLocations = [];
+var pickedPowerUps = [];
+var obL = 13;
+var pwL = 5;
+var scoreElement;
+var healthElement;
+
 
 //buffers
 var worldVertexPositionBuffer;
@@ -109,6 +112,14 @@ var shipVertexPositionBuffer;
 var shipVertexNormalBuffer;
 var shipVertexTextureCoordBuffer;
 var shipVertexIndexBuffer;
+
+
+var powerVertexPositionBuffer;
+var powerVertexNormalBuffer;
+var powerVertexTextureCoordBuffer;
+var powerVertexIndexBuffer;
+var powerTranslationsBuffer;
+var powerUpBonusBuffer;
 
 var backVertexPositionBuffer;
 var backVertexNormalBuffer;
@@ -124,13 +135,17 @@ var pMatrix = mat4.create();
 var shipTexture;
 var metalTexture;
 var backTexture;
+var healthTexture;
+var boostTexture;
 
 // Variable that stores  loading state of textures.
-var numberOfTextures = 3;
+
+var numberOfTextures = 6;
 var texturesLoaded = 0;
 
 // Helper variables for rotation
-var teapotAngle = 180;
+var powerUpAngle = 180;
+var lastTime = 0;
 
 // Helper variable for animation
 var currentlyPressedKeys = {};
@@ -148,42 +163,76 @@ var shipAltitude = 0;
 var speed = 1;
 var score = 0;
 var health = 100;
-
-var intervalId
-
-// Helper variable for animation
-var lastTime = 0;
-
+var obIndex = 0;
+var pwIndex = 0;
+var nextPowUp = -50;
+var nextObstacle = -30;
+var multiplier = 1;
+var intervalId;
 
 
 function handleCollisions(callback) {
-    for (var i = 2; i < obstaclesLocations.length; i += 3) {
-        console.log(zPosition, obstaclesLocations[i]);
-        if (zPosition <= obstaclesLocations[i] + 0.05 && zPosition >= obstaclesLocations[i]) {
-            console.log("uatafak");
-            if (shipLine == obstaclesLocations[i - 2] && shipAltitude == obstaclesLocations[i - 1]) {
-                console.log("collided");
-                health -= 25;
-                if (health == 0) {
-                    console.log("lost");
-                    clearInterval(intervalId);
-                    var ctx = canvas.getContext("2d");
-                    if (ctx) {
-                        ctx.fillRect(0, 0, gl.viewportWidth, gl.viewportHeight);
-                    }
-                    setTimeout(function() {
-                        overElement = document.getElementById("over");
-                        overElement.style.visibility = "visible";
-                        var audio = new Audio('/assets/Game - Over.mp3');
-                        audio.play()
-                    }, 1000)
+    if (zPosition - 5 == nextObstacle) {
+        for (var i = 0; i < obstaclesLocations[obIndex].length; i++) {
+            if (obstaclesLocations[obIndex][i] == nextObstacle) {
+                if (shipLine == obstaclesLocations[obIndex][i - 2] && shipAltitude == obstaclesLocations[obIndex][i - 1]) {
+                    health -= 25;
+                    if (health == 0) {
+                        clearInterval(intervalId);
+                        setTimeout(function() {
+                            overElement = document.getElementById("over");
+                            overElement.style.visibility = "visible";
+                            var audio = new Audio('/assets/Game - Over.mp3');
+                            audio.play()
+                        }, 1000)
 
+                    }
                 }
             }
         }
+
+        obIndex++;
+        nextObstacle = obstaclesLocations[obIndex][2];
+
     }
+    if (zPosition - 9 == nextPowUp) {
+        for (var i = 0; i < powerUpLocations[pwIndex].length; i++) {
+            if (powerUpLocations[pwIndex][i] == nextPowUp) {
+                if (shipLine == powerUpLocations[pwIndex][i - 2] && shipAltitude == powerUpLocations[pwIndex][i - 1]) {
+                    if (determinePowerUp() == "health") {
+                        if (health < 100) {
+                            health += 25;
+                            console.log("health boost picked");
+                        }
+                    } else {
+                        console.log("speedboost picked");
+                        speed *= 2;
+                        multiplier *= 2;
+                        setTimeout(speedBoost, 1500);
+                    }
+                    pickedPowerUps.push(pwIndex);
+                }
+            }
+        }
+
+        pwIndex++;
+        nextPowUp = powerUpLocations[pwIndex][2];
+        console.log(nextPowUp);
+    }
+
     callback();
 }
+
+function speedBoost() {
+    speed /= 2;
+    multiplier /= 2;
+}
+
+function determinePowerUp() {
+    var powerUp = powerUpBonusBuffer[pwIndex];
+    return powerUp;
+}
+
 
 function updateShipLine() {
     if (xPosition > -5 && xPosition < -3 && yPosition == 2.75) {
@@ -242,6 +291,16 @@ function mvPopMatrix() {
 
 function degToRad(degrees) {
     return degrees * Math.PI / 180;
+}
+
+function initObstacleBuffer() {
+    for (var i = 0; i < obL; i++) {
+        obstaclesLocations[i] = [];
+    }
+    for (var i = 0; i < pwL; i++) {
+        powerUpLocations[i] = [];
+    }
+
 }
 
 //
@@ -382,7 +441,35 @@ function initTextures() {
     metalTexture.image.onload = function() {
         handleTextureLoaded(metalTexture)
     }
-    metalTexture.image.src = "./assets/metal.jpg"
+    metalTexture.image.src = "./assets/metal.jpg";
+
+    healthTexture = gl.createTexture();
+    healthTexture.image = new Image();
+    healthTexture.image.onload = function() {
+        handleTextureLoaded(healthTexture)
+    }
+    healthTexture.image.src = "./assets/health.jpg";
+
+    boostTexture = gl.createTexture();
+    boostTexture.image = new Image();
+    boostTexture.image.onload = function() {
+        handleTextureLoaded(boostTexture);
+    }
+    boostTexture.image.src = "./assets/boost.jpg";
+
+    shipTexture = gl.createTexture();
+    shipTexture.image = new Image();
+    shipTexture.image.onload = function() {
+        handleTextureLoaded(shipTexture)
+    }
+    shipTexture.image.src = "./assets/shipTex.jpg";
+
+    backTexture = gl.createTexture();
+    backTexture.image = new Image();
+    backTexture.image.onload = function() {
+        handleTextureLoaded(backTexture)
+    }
+    backTexture.image.src = "./assets/bgPic1.png";
 
     backTexture = gl.createTexture();
     backTexture.image = new Image();
@@ -448,6 +535,77 @@ function handleLoadedWorld(worldData) {
     document.getElementById("loadingtext").textContent = "";
 }
 
+function handleLoadedBackground(backData) {
+    // Pass the normals into WebGL
+    //console.log(backData);
+    backVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backData.vertexNormals), gl.STATIC_DRAW);
+    backVertexNormalBuffer.itemSize = 3;
+    backVertexNormalBuffer.numItems = backData.vertexNormals.length / 3;
+    // Pass the texture coordinates into WebGL
+    backVertexTextureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexTextureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backData.vertexTextureCoords), gl.STATIC_DRAW);
+    backVertexTextureCoordBuffer.itemSize = 2;
+    backVertexTextureCoordBuffer.numItems = backData.vertexTextureCoords.length / 2;
+    // Pass the vertex positions into WebGL
+    backVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backData.vertexPositions), gl.STATIC_DRAW);
+    backVertexPositionBuffer.itemSize = 3;
+    backVertexPositionBuffer.numItems = backData.vertexPositions.length / 3;
+    // Pass the indices into WebGL
+    backVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, backVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(backData.indices), gl.STATIC_DRAW);
+    backVertexIndexBuffer.itemSize = 1;
+    backVertexIndexBuffer.numItems = backData.indices.length;
+    document.getElementById("loadingtext").textContent = "";
+}
+
+
+function handleLoadedPowerUps(powerData) {
+    // Pass the normals into WebGL
+    //console.log(powerData);
+    powerVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(powerData.vertexNormals), gl.STATIC_DRAW);
+    powerVertexNormalBuffer.itemSize = 3;
+    powerVertexNormalBuffer.numItems = powerData.vertexNormals.length / 3;
+
+    // Pass the texture coordinates into WebGL
+    powerVertexTextureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexTextureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(powerData.vertexTextureCoords), gl.STATIC_DRAW);
+    powerVertexTextureCoordBuffer.itemSize = 2;
+    powerVertexTextureCoordBuffer.numItems = powerData.vertexTextureCoords.length / 2;
+
+
+    // Pass the vertex positions into WebGL
+    powerVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(powerData.vertexPositions), gl.STATIC_DRAW);
+    powerVertexPositionBuffer.itemSize = 3;
+    powerVertexPositionBuffer.numItems = powerData.vertexPositions.length / 3;
+
+    // Pass the indices into WebGL
+    powerVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, powerVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(powerData.indices), gl.STATIC_DRAW);
+    powerVertexIndexBuffer.itemSize = 1;
+    powerVertexIndexBuffer.numItems = powerData.indices.length;
+
+    powerTranslationsBuffer = powerData.translations;
+    powerTranslationsBuffer.itemSize = 3;
+    powerTranslationsBuffer.numItems = Object.keys(powerTranslationsBuffer).length - 1;
+
+    powerUpBonusBuffer = powerData.powerUpBonus;
+    console.log(powerUpBonusBuffer);
+    powerUpBonusBuffer.numItems = powerUpBonusBuffer.length;
+
+    document.getElementById("loadingtext").textContent = "";
+}
 
 function handleLoadedShip(shipData) {
     // Pass the normals into WebGL
@@ -481,6 +639,8 @@ function handleLoadedShip(shipData) {
 
     document.getElementById("loadingtext").textContent = "";
 }
+
+
 
 function handleLoadedBackground(backData) {
     // Pass the normals into WebGL
@@ -516,12 +676,24 @@ function handleLoadedBackground(backData) {
 }
 
 
+
 function loadShip() {
     var request = new XMLHttpRequest();
     request.open("GET", "./assets/ship10.json");
     request.onreadystatechange = function() {
         if (request.readyState == 4) {
             handleLoadedShip(JSON.parse(request.responseText));
+        }
+    }
+    request.send();
+}
+
+function loadBackground() {
+    var request = new XMLHttpRequest();
+    request.open("GET", "./assets/background.json");
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            handleLoadedBackground(JSON.parse(request.responseText));
         }
     }
     request.send();
@@ -550,6 +722,9 @@ function loadBackground() {
 }
 function handleLoadedObstacles(obstacleData) {
     obstaclesLocations = obstacleData.obstaclesLocations;
+    nextObstacle = obstaclesLocations[0][2];
+    powerUpLocations = obstacleData.powUpLocations;
+    nextPowUp = powerUpLocations[0][2];
 }
 
 function loadObstacles() {
@@ -563,14 +738,23 @@ function loadObstacles() {
     request.send();
 }
 
+function loadPowerUps() {
+    var request = new XMLHttpRequest();
+    request.open("GET", "./assets/powerups.json");
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            handleLoadedPowerUps(JSON.parse(request.responseText));
+        }
+    }
+    request.send();
+}
+
 
 
 function drawScene() {
     // set the rendering environment to full canvas size
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     score = -zPosition;
-    kSpeed = speed - 1;
-    speedElement.innerHTML = kSpeed.toFixed(0);
     scoreElement.innerHTML = score.toFixed(0);
     healthElement.innerHTML = health.toFixed(0);
 
@@ -631,7 +815,29 @@ function drawScene() {
     var texture = document.getElementById("texture").value;
 
     // set uniform to the value of the checkbox.
-    gl.uniform1i(shaderProgram.useTexturesUniform, texture != "none");
+    gl.uniform1i(shaderProgram.useTexturesUniform, true);
+
+    mat4.identity(mvMatrix);
+    //mat4.translate(mvMatrix, [-xPosition, -yPosition, -zPosition]);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, backTexture);
+    gl.uniform1i(shaderProgram.samplerUniform, 0);
+    mvPushMatrix();
+    // Set the vertex positions attribute for the teapot vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, backVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the texture coordinates attribute for the vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, backVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the normals attribute for the vertices.
+    gl.bindBuffer(gl.ARRAY_BUFFER, backVertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, backVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    // Set the index for the vertices.
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, backVertexIndexBuffer);
+    setMatrixUniforms();
+    // Draw the teapot
+    gl.drawElements(gl.TRIANGLES, backVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
 
     //background
     mat4.identity(mvMatrix);
@@ -669,10 +875,7 @@ function drawScene() {
 
     // Activate textures
     gl.activeTexture(gl.TEXTURE0);
-
-    if (texture == "galvanized") {
-        gl.bindTexture(gl.TEXTURE_2D, metalTexture);
-    }
+    gl.bindTexture(gl.TEXTURE_2D, metalTexture);
     gl.uniform1i(shaderProgram.samplerUniform, 0);
 
     // Activate shininess
@@ -694,25 +897,25 @@ function drawScene() {
     // Draw the teapot
     gl.drawElements(gl.TRIANGLES, worldVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
     mvPopMatrix();
-    
-    
+
+
     //ship
     mat4.identity(mvMatrix);
-
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, shipTexture);
     gl.uniform1i(shaderProgram.samplerUniform, 0);
-
     mat4.translate(mvMatrix, [0, -2, -8]);
     mat4.scale(mvMatrix, [0.2, 0.2, 0.2]);
-    //mat4.translate(mvMatrix, [0, -2, -8]);
+
+    
     mvPushMatrix();
     mat4.rotate(mvMatrix, degToRad(180), [0, 1, 0]);
     gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, shipVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
-    //dodaj za teksturo!
     gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexTextureCoordBuffer);
     gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, shipVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(shaderProgram.samplerUniform, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, shipVertexNormalBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, shipVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipVertexIndexBuffer);
@@ -720,8 +923,83 @@ function drawScene() {
     gl.drawElements(gl.TRIANGLES, shipVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
     mvPopMatrix();
 
+
+    // gl.uniform1i(shaderProgram.useTexturesUniform, true);
+    //powerups
+    if (pickedPowerUps.length < 1) {
+
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition, -yPosition + 0.8, -zPosition - 50]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(0);
+
+    }
+
+    if (pickedPowerUps.length < 2) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition + 2, -yPosition + 0.8, -zPosition - 80]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(1);
+    }
+
+    if (pickedPowerUps.length < 3) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition + 3, -yPosition + 0.8, -zPosition - 130]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(2);
+    }
+
+    if (pickedPowerUps.length < 4) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition - 1, -yPosition + 0.8, -zPosition - 190]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(3);
+    }
+    if (pickedPowerUps.length < 5) {
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-xPosition - 2, -yPosition + 0.8, -zPosition - 260]);
+        mat4.rotate(mvMatrix, degToRad(powerUpAngle), [0, 1, 0]);
+        drawPowerUps(4);
+    }
+
 }
 
+function drawPowerUps(index) {
+
+    mvPushMatrix();
+    gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, powerVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    //dodaj za teksturo!
+    gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, powerVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    var texture = powerUpBonusBuffer[index];
+    gl.activeTexture(gl.TEXTURE0);
+    if (texture == "speed") {
+        gl.bindTexture(gl.TEXTURE_2D, boostTexture);
+    } else if (texture == "health") {
+        gl.bindTexture(gl.TEXTURE_2D, healthTexture);
+    }
+    gl.uniform1i(shaderProgram.samplerUniform, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, powerVertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, powerVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, powerVertexIndexBuffer);
+    setMatrixUniforms();
+    gl.drawElements(gl.TRIANGLES, powerVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    mvPopMatrix();
+}
+
+function animate() {
+    var timeNow = new Date().getTime();
+    if (lastTime != 0) {
+        var elapsed = timeNow - lastTime;
+        powerUpAngle += 0.05 * elapsed;
+    }
+    lastTime = timeNow;
+}
+
+
+var previousSpeed = 0;
+var pauseFlag = false;
 
 function handleKeys(e) {
     if (e.code == "KeyA") {
@@ -744,26 +1022,35 @@ function handleKeys(e) {
         } else if (xPosition == 2) {
             xPosition = 4;
         }
-    } else if (e.code == "ArrowUp") {
-        zPosition -= 0.5;
-        e.preventDefault();
-    } else if (e.code == "ArrowDown") {
-        zPosition += 0.5
-        e.preventDefault();
+
     } else if (e.code == "KeyW" && yPosition == 2.75) {
         yPosition = 3.5
     } else if (e.code = "KeyS" && yPosition == 3.5) {
         yPosition = 2.75
 
-    } else if (e.code = "KeyE") {
-        speed = 0;
-        clearInterval(intervalId);
-        e.preventDefault()
+    } else if (e.code = "KeyE" && (yPosition == 2.75 || yPosition == 3.5)) {
+
+
+        if (!pauseFlag) {
+
+            previousSpeed = speed;
+            speed = 0;
+            //e.preventDefault();
+            pauseFlag = true;
+        } else {
+            speed = previousSpeed;
+            pauseFlag = false;
+
+        }
+
+
+    } else {
+        e.preventDefault();
     }
+    e.preventDefault();
 }
 
 function initUI() {
-    speedElement = document.getElementById("speed");
     scoreElement = document.getElementById("score");
     healthElement = document.getElementById("health");
 
@@ -786,13 +1073,15 @@ function start() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         // Initialize the shaders; this is where all the lighting for the
         // vertices and so forth is established.
+        initObstacleBuffer();
         initUI();
         console.log("UI pognan");
         initShaders();
         console.log("ShaderProgram pognan");
         initTextures();
-        console.log("Teksture inicializirane");
         loadBackground();
+        loadPowerUps();
+        console.log("Teksture inicializirane");
         loadShip();
         loadWorld();
         loadObstacles();
@@ -806,13 +1095,14 @@ function start() {
                 if (zPosition == -200) {
                     speed *= 2;
                 }
-                //speed += 0.005;
-
+                // if (!pauseFlag) {
                 handleCollisions(function() {
+                    requestAnimationFrame(animate);
                     updateShipLine();
                     document.addEventListener("keypress", handleKeys);
                     drawScene();
                 });
+                //}
 
 
 
